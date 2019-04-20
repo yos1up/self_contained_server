@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>SELF-CONTAINED SERVER</title>
+</head>
+<body>
+	<h1>SELF-CONTAINED SERVER</h1>
+
+	<h2> Current APIs </h2>
+	{api_list}
+
+	<h2> Register API </h2>
+
+	<form action="./query/register" method="POST" enctype="multipart/form-data">
+		API path : &nbsp; /apis/<input type="text" id="api_name" name="api_name" width=30><br>
+		Scripts (in zip file) : <input type="file" id="file" name="file"><br>
+		<input type="submit" value="Register" />
+	</form>
+
+	<ul>
+		<li> Zip file must contain a file `main.py` in the root directory. </li>
+		<li> In `main.py`, a class `APIResource` must be defined, which is compatible with `falcon`. 
+			<a href="./examples/main.py">Example of main.py</a></li>
+	</ul>
+
+	<h2> Delete API </h2>
+
+	<form action="./query/delete" method="POST" enctype="multipart/form-data">
+		API path : &nbsp; /apis/<input type="text" id="api_name" name="api_name" width=30>
+		<input type="submit" value="Delete" />
+	</form>
+</body>
+</html>
