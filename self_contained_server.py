@@ -35,68 +35,6 @@ def is_healthy_api_name(s):
     return True
 
 
-class APIManager:
-    """
-    /apis/ 配下の API (URL と Resourse) の一覧を管理するクラス．
-    API を登録したり削除したりできる．
-    """
-    def __init__(self):
-        # API の一覧．[(api_name(str), api_resource(Resource class instance)), ... ]
-        self.api_list = [] # PUBLIC
-
-    def get_api_name_list(self):
-        return [a[0] for a in self.api_list]
-
-    def delete_api(self, api_name):
-        """
-        ./apis/{api_name} の API を削除する．
-        --------
-        Args:
-            api_name (str): APIの名称．名称の適切性（例えばスラッシュやドットが含まれていない等）は判定されません．
-
-        Returns:
-            ((bool), (str)): 削除に正常に成功したか否か，及びエラーメッセージ
-        """
-        try:
-            for i,a in enumerate(self.api_list):
-                if a[0] == api_name:
-                    name, resource = self.api_list.pop(i)
-                    del resource # Resource class の破棄．
-                    api_path = './apis/{}'.format(name)
-                    if os.path.exists(api_path):
-                        shutil.rmtree(api_path)
-                    return True, ''
-        except:
-            msg = get_error_message()
-            print(msg)
-            return False, msg
-        return False, 'not such api registered: {}'.format(api_name)
-
-    def register_api_from_directory(self, api_name):
-        """
-        ./apis/{api_name}/ ディレクトリに格納されている内容を元に，route の登録を試みる．
-        --------
-        Args:
-            api_name (str): APIの名称．名称の適切性（例えばスラッシュやドットが含まれていない等）は判定されません．
-
-        Returns:
-            ((bool), (str)): route の登録に正常に成功したか否か，及びエラーメッセージ
-        """
-        try:
-            NewModule = importlib.import_module('apis.{}.main'.format(api_name))
-            # reload の場合はこれが必要．
-            importlib.reload(NewModule)
-            api_resource = NewModule.APIResource()
-            app.add_route('/apis/{}'.format(api_name), api_resource)
-            self.api_list.append((api_name, api_resource))
-            return True, ''
-        except Exception as e:
-            print('Registration failed: /apis/{}'.format(api_name))
-            msg = get_error_message()
-            print(msg)
-            return False, msg
-
-api_manager = APIManager()
 
 
 class RootResource:
@@ -115,7 +53,88 @@ class RootResource:
         # TODO: 最低限のセキュリティ（外部者に API 削除される・・・）
         resp.body = resp.body.replace('{api_list}', ', '.join(api_list))
 
-        
+class APIsResource:
+    """
+    API の呼び出しを行う．（ルーティング）
+    URL: /apis/{api_name}
+    """ 
+    def __init__(self):
+        self.api_dict = dict()
+        # 最初からディレクトリにある apis を自身に登録する．
+        for d in glob.glob('./apis/*/'):
+            api_name = d[7:-1]
+            self.add_api(api_name)
+
+    def add_api(self, api_name):
+        """
+        ./apis/{api_name}/ ディレクトリに格納されている内容を元に，route の登録を試みる．
+        --------
+        Args:
+            api_name (str): APIの名称．名称の適切性（例えばスラッシュやドットが含まれていない等）は判定されません．
+
+        Returns:
+            ((bool), (str)): route の登録に正常に成功したか否か，及びエラーメッセージ
+        """
+        try:
+            NewModule = importlib.import_module('apis.{}.main'.format(api_name))
+            importlib.reload(NewModule) # reload の場合はこれが必要．（reload でない場合もこれを実行して良い．）
+            api_resource = NewModule.APIResource()
+            # app.add_route('/apis/{}'.format(api_name), api_resource)
+            self.api_dict[api_name] = api_resource
+            # self.api_list.append((api_name, api_resource))
+            return True, ''
+        except Exception as e:
+            print('Registration failed: /apis/{}'.format(api_name))
+            msg = get_error_message()
+            print(msg)
+            return False, msg
+
+    def del_api(self, api_name):
+        """
+        ./apis/{api_name} の API を削除する．
+        --------
+        Args:
+            api_name (str): APIの名称．名称の適切性（例えばスラッシュやドットが含まれていない等）は判定されません．
+
+        Returns:
+            ((bool), (str)): 削除に正常に成功したか否か，及びエラーメッセージ
+        """
+        try:
+            if api_name in self.api_dict:
+                resource = self.api_dict.pop(api_name)
+                del resource
+                api_path = './apis/{}'.format(api_name)
+                if os.path.exists(api_path):
+                    shutil.rmtree(api_path)
+                return True, ''
+            else:
+                return False, 'not such api registered: {}'.format(api_name)
+        except:
+            msg = get_error_message()
+            print(msg)
+            return False, msg
+
+    def on_get(self, req, resp, api_name):
+        """
+        ルーティング (GET)
+        """
+        if api_name in self.api_dict:
+            self.api_dict[api_name].on_get(req, resp)
+        else:
+            resp.status = falcon.HTTP_404
+
+    def on_post(self, req, resp, api_name):
+        """
+        ルーティング (POST)
+        """
+        if api_name in self.api_dict:
+            self.api_dict[api_name].on_post(req, resp)
+        else:
+            resp.status = falcon.HTTP_404
+apis_resource = APIsResource()
+
+
+
 class RegisterResource:
     """
     API の登録を行う．
@@ -123,7 +142,6 @@ class RegisterResource:
     """
     def on_post(self, req, resp):
         file = req.get_param('file')
-        print('file:', file)
         if isinstance(file, cgi.FieldStorage):
             api_name = req.get_param('api_name')
             if isinstance(api_name, str) and len(api_name) > 0:
@@ -144,7 +162,8 @@ class RegisterResource:
                     os.remove('./apis/_')
 
                     # ディレクトリに保存された内容を元に，新しい API を登録する．
-                    flg, msg = api_manager.register_api_from_directory(api_name)
+                    # flg, msg = api_manager.register_api_from_directory(api_name)
+                    flg, msg = apis_resource.add_api(api_name)
 
                     if flg:
                         print('successfully added new route: /apis/{}'.format(api_name))
@@ -184,7 +203,8 @@ class DeleteResource:
         if isinstance(api_name, str) and len(api_name) > 0:
             if is_healthy_api_name(api_name):
 
-                flg, msg = api_manager.delete_api(api_name)
+                # flg, msg = api_manager.delete_api(api_name)
+                flg, msg = apis_resource.del_api(api_name)
 
                 if flg:
                     print('successfully deleted route: /apis/{}'.format(api_name))
@@ -211,12 +231,10 @@ if __name__ == "__main__":
     app.add_route('/query/register', RegisterResource())
     app.add_route('/query/delete', DeleteResource())
     app.add_route('/examples/{filename}', ExamplesResource())
-    for d in glob.glob('./apis/*/'):
-        api_name = d[7:-1]
-        api_manager.register_api_from_directory(api_name)
+    app.add_route('/apis/{api_name}', apis_resource)
 
 
     from wsgiref import simple_server
     httpd = simple_server.make_server("127.0.0.1", args.port, app)
-    print("Server started!")
+    print("Server started at port {}!".format(args.port))
     httpd.serve_forever()
