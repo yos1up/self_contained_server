@@ -1,5 +1,9 @@
 import json
 
+# Directory in which this file is located
+# import os
+# this_directory = os.path.dirname(os.path.abspath(__file__))
+
 class APIResource():
     def on_get(self, req, resp):
         params = req.params # GET parameters

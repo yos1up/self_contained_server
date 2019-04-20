@@ -1,7 +1,6 @@
 import falcon
 from falcon_multipart.middleware import MultipartMiddleware
 import json
-import numpy as np
 import os, shutil
 import importlib
 import zipfile
