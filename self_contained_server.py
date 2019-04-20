@@ -46,12 +46,14 @@ class RootResource:
         resp.content_type = falcon.MEDIA_HTML
         with open('./index.html', 'r') as f:
             resp.body = f.read()
-
-        api_list = [i[1:] for i in glob.glob('./apis/*')]
-        # TODO: 実際に app に登録されているもののみを表示すべき
-
         # TODO: 最低限のセキュリティ（外部者に API 削除される・・・）
-        resp.body = resp.body.replace('{api_list}', ', '.join(api_list))
+
+        api_name_list = apis_resource.get_api_name_list()
+        api_list = ['/apis/{}'.format(name) for name in api_name_list]
+        if len(api_list) > 0:
+            resp.body = resp.body.replace('{api_list}', ', '.join(api_list))
+        else:
+            resp.body = resp.body.replace('{api_list}', '(None)')
 
 class APIsResource:
     """
@@ -64,6 +66,9 @@ class APIsResource:
         for d in glob.glob('./apis/*/'):
             api_name = d[7:-1]
             self.add_api(api_name)
+
+    def get_api_name_list(self):
+        return list(self.api_dict.keys())
 
     def add_api(self, api_name):
         """
@@ -79,9 +84,10 @@ class APIsResource:
             NewModule = importlib.import_module('apis.{}.main'.format(api_name))
             importlib.reload(NewModule) # reload の場合はこれが必要．（reload でない場合もこれを実行して良い．）
             api_resource = NewModule.APIResource()
-            # app.add_route('/apis/{}'.format(api_name), api_resource)
+            if api_name in self.api_dict:
+                old_resource = self.api_dict.pop(api_name)
+                del old_resource
             self.api_dict[api_name] = api_resource
-            # self.api_list.append((api_name, api_resource))
             return True, ''
         except Exception as e:
             print('Registration failed: /apis/{}'.format(api_name))
@@ -141,6 +147,7 @@ class RegisterResource:
     URL: /query/register
     """
     def on_post(self, req, resp):
+        code, message, result = 0, '', None
         file = req.get_param('file')
         if isinstance(file, cgi.FieldStorage):
             api_name = req.get_param('api_name')
@@ -151,36 +158,47 @@ class RegisterResource:
                         f.write(raw)
 
                     # zip ファイルを展開し，所定のディレクトリに保存する．
-                    with zipfile.ZipFile('./apis/_') as f:
-                        f.extractall('./apis/__')
-                    api_path = './apis/{}/'.format(api_name)
-                    flg_reload = False
-                    if os.path.exists(api_path):
-                        shutil.rmtree(api_path)
-                        flg_reload = True
-                    os.rename('./apis/__', api_path)
-                    os.remove('./apis/_')
-
-                    # ディレクトリに保存された内容を元に，新しい API を登録する．
-                    # flg, msg = api_manager.register_api_from_directory(api_name)
-                    flg, msg = apis_resource.add_api(api_name)
-
-                    if flg:
-                        print('successfully added new route: /apis/{}'.format(api_name))
-                        obj = 'successfully added new route: /apis/{}'.format(api_name)
-                        if flg_reload:
-                            obj += ' (reloaded)'
+                    try:
+                        with zipfile.ZipFile('./apis/_') as f:
+                            f.extractall('./apis/__')
+                    except zipfile.BadZipFile:
+                        code = 10
+                        message = 'File is not a zip file.'
                     else:
-                        obj = 'error while adding new route: /apis/{} \n {}'.format(api_name, msg)
-                else:
-                    obj = 'use a-z, 0-9, -, and _ only in `api_name` (actual: {})'.format(api_name)
-            else:
-                obj = 'specify parameter `api_name`'
-        else:
-            obj = 'specify file.'
+                        api_path = './apis/{}/'.format(api_name)
+                        flg_reload = False
+                        if os.path.exists(api_path):
+                            shutil.rmtree(api_path)
+                            flg_reload = True
+                        os.rename('./apis/__', api_path)
+                        os.remove('./apis/_')
 
-        resp.body = json.dumps(obj, ensure_ascii=False)
-        # TODO もっと machine-friendly なフォーマットで結果を返却する
+                        # ディレクトリに保存された内容を元に，新しい API を登録する．
+                        flg, err = apis_resource.add_api(api_name)
+
+                        if flg:
+                            print('successfully added new route: /apis/{}'.format(api_name))
+                            message = 'successfully added new route: /apis/{}'.format(api_name)
+                            if flg_reload:
+                                message += ' (reloaded)'
+                        else:
+                            code = 1
+                            message = 'error while adding new route: /apis/{}  \n{}'.format(api_name, err)
+                else:
+                    code = 2
+                    message = 'use a-z, 0-9, -, and _ only in `api_name` (actual: {})'.format(api_name)
+            else:
+                code = 3
+                message = 'specify parameter `api_name`'
+        else:
+            code = 4
+            message = 'specify `file`'
+
+        resp.body = json.dumps({
+            'code': code,
+            'message': message,
+            'result': result
+        }, ensure_ascii=False)
 
 
 class ExamplesResource:
@@ -199,25 +217,31 @@ class DeleteResource:
     URL: /query/delete
     """
     def on_post(self, req, resp):
+        code, message, result = 0, '', None
         api_name = req.get_param('api_name')
         if isinstance(api_name, str) and len(api_name) > 0:
             if is_healthy_api_name(api_name):
 
-                # flg, msg = api_manager.delete_api(api_name)
-                flg, msg = apis_resource.del_api(api_name)
+                flg, err = apis_resource.del_api(api_name)
 
                 if flg:
                     print('successfully deleted route: /apis/{}'.format(api_name))
-                    obj = 'successfully deleted route: /apis/{}'.format(api_name)
+                    message = 'successfully deleted route: /apis/{}'.format(api_name)
                 else:
-                    obj = 'error while deleting route; /apis/{} \n {}'.format(api_name, msg)
+                    code = 1
+                    message = 'error while deleting route: /apis/{}  \n{}'.format(api_name, err)
             else:
-                obj = 'use a-z, 0-9, -, and _ only in `api_name` (actual: {})'.format(api_name)
+                code = 2
+                message = 'use a-z, 0-9, -, and _ only in `api_name` (actual: {})'.format(api_name)
         else:
-            obj = 'specify parameter `api_name`'
+            code = 3
+            message = 'specify parameter `api_name`'
 
-        resp.body = json.dumps(obj, ensure_ascii=False)
-        # TODO もっと machine-friendly なフォーマットで結果を返却する
+        resp.body = json.dumps({
+            'code': code,
+            'message': message,
+            'result': result
+        }, ensure_ascii=False)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='SELF-CONTAINED SERVER')
