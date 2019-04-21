@@ -3,7 +3,12 @@ register your API very easily
 
 ### Dependency
 
-falcon, falcon_multipart
+- Python >=3.5
+
+- falcon
+
+- falcon_multipart
+
 
 ### Usage
 
