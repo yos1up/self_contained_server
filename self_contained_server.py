@@ -164,9 +164,11 @@ class RegisterResource:
                         with zipfile.ZipFile('./apis/_') as f:
                             f.extractall('./apis/__')
                     except zipfile.BadZipFile:
+                        shutil.rmtree('./apis/__/')
                         code = 10
                         message = 'File is not a zip file.'
                     except:
+                        shutil.rmtree('./apis/__/')
                         err = get_error_message()
                         code = 11
                         message = 'error while extracting zip file : {}'.format(err)
@@ -188,6 +190,7 @@ class RegisterResource:
                             if flg_reload:
                                 message += ' (reloaded)'
                         else:
+                            shutil.rmtree(api_path) # 正常に API を登録できなかった場合は，フォルダ削除する．
                             code = 1
                             message = 'Error while adding new route /apis/{} : {}'.format(api_name, err)
                 else:
