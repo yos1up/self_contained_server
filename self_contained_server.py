@@ -163,6 +163,10 @@ class RegisterResource:
                     except zipfile.BadZipFile:
                         code = 10
                         message = 'File is not a zip file.'
+                    except:
+                        err = get_error_message()
+                        code = 11
+                        message = 'error while extracting zip file : {}'.format(err)
                     else:
                         api_path = './apis/{}/'.format(api_name)
                         flg_reload = False
@@ -176,13 +180,13 @@ class RegisterResource:
                         flg, err = apis_resource.add_api(api_name)
 
                         if flg:
-                            print('successfully added new route: /apis/{}'.format(api_name))
-                            message = 'successfully added new route: /apis/{}'.format(api_name)
+                            print('successfully added new route /apis/{}'.format(api_name))
+                            message = 'successfully added new route /apis/{}'.format(api_name)
                             if flg_reload:
                                 message += ' (reloaded)'
                         else:
                             code = 1
-                            message = 'error while adding new route: /apis/{}  \n{}'.format(api_name, err)
+                            message = 'error while adding new route /apis/{} : {}'.format(api_name, err)
                 else:
                     code = 2
                     message = 'use a-z, 0-9, -, and _ only in `api_name` (actual: {})'.format(api_name)
