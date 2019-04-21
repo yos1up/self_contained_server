@@ -29,6 +29,8 @@ def is_healthy_api_name(s):
     Args: s (str)
     Returns: (bool)
     """
+    if s == '': return False
+    if s[0] == '_': return False
     for c in s:
         if (c < 'a' or 'z' < c) and (c < '0' or '9' < c) and c not in '-_': return False
     return True
@@ -61,10 +63,11 @@ class APIsResource:
     """ 
     def __init__(self):
         self.api_dict = dict()
-        # 最初からディレクトリにある apis を自身に登録する．
+        # 最初からディレクトリにある apis を自身に登録する．ただし unhealthy な名前のディレクトリは対象にしない．
         for d in glob.glob('./apis/*/'):
             api_name = d[7:-1]
-            self.add_api(api_name)
+            if is_healthy_api_name(api_name):
+                self.add_api(api_name)
 
     def get_api_name_list(self):
         return list(self.api_dict.keys())
@@ -180,22 +183,22 @@ class RegisterResource:
                         flg, err = apis_resource.add_api(api_name)
 
                         if flg:
-                            print('successfully added new route /apis/{}'.format(api_name))
-                            message = 'successfully added new route /apis/{}'.format(api_name)
+                            print('Successfully added new route /apis/{}'.format(api_name))
+                            message = 'Successfully added new route /apis/{}'.format(api_name)
                             if flg_reload:
                                 message += ' (reloaded)'
                         else:
                             code = 1
-                            message = 'error while adding new route /apis/{} : {}'.format(api_name, err)
+                            message = 'Error while adding new route /apis/{} : {}'.format(api_name, err)
                 else:
                     code = 2
-                    message = 'use a-z, 0-9, -, and _ only in `api_name` (actual: {})'.format(api_name)
+                    message = 'Use only a-z, 0-9, -, and _ in `api_name`. Also, first letter must not be _ (actual: {})'.format(api_name)
             else:
                 code = 3
-                message = 'specify parameter `api_name`'
+                message = 'Specify parameter `api_name`'
         else:
             code = 4
-            message = 'specify `file`'
+            message = 'Specify `file`'
 
         resp.body = json.dumps({
             'code': code,
@@ -228,17 +231,17 @@ class DeleteResource:
                 flg, err = apis_resource.del_api(api_name)
 
                 if flg:
-                    print('successfully deleted route: /apis/{}'.format(api_name))
-                    message = 'successfully deleted route: /apis/{}'.format(api_name)
+                    print('Successfully deleted route: /apis/{}'.format(api_name))
+                    message = 'Successfully deleted route: /apis/{}'.format(api_name)
                 else:
                     code = 1
-                    message = 'error while deleting route: /apis/{}  \n{}'.format(api_name, err)
+                    message = 'Error while deleting route: /apis/{}  \n{}'.format(api_name, err)
             else:
                 code = 2
-                message = 'use a-z, 0-9, -, and _ only in `api_name` (actual: {})'.format(api_name)
+                message = 'Use only a-z, 0-9, -, and _ in `api_name`. Also, first letter must not be _ (actual: {})'.format(api_name)
         else:
             code = 3
-            message = 'specify parameter `api_name`'
+            message = 'Specify parameter `api_name`'
 
         resp.body = json.dumps({
             'code': code,
