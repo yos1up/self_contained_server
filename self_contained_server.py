@@ -8,11 +8,13 @@ import glob
 import sys
 import argparse
 import cgi
+import traceback
 
 
 def get_error_message(sys_exc_info=None):
     ex, ms, tb = sys.exc_info() if sys_exc_info is None else sys_exc_info
-    return '[Error]\n' + str(ex) + '\n' + str(ms)
+    # return '[Error]\n' + str(ex) + '\n' + str(ms)
+    return ''.join(traceback.format_exception(ex, ms, tb))
 
 class CORSMiddleware:
     def process_request(self, req, resp):
@@ -127,7 +129,16 @@ class APIsResource:
         ルーティング (GET)
         """
         if api_name in self.api_dict:
-            self.api_dict[api_name].on_get(req, resp)
+            try:
+                self.api_dict[api_name].on_get(req, resp)
+            except:
+                err = get_error_message()
+                resp.status = falcon.HTTP_500
+                resp.body = json.dumps({
+                    'code': -100,
+                    'message': 'Error occured during processing /apis/{}: {}'.format(api_name, err),
+                    'result': None
+                })
         else:
             resp.status = falcon.HTTP_404
 
@@ -136,7 +147,16 @@ class APIsResource:
         ルーティング (POST)
         """
         if api_name in self.api_dict:
-            self.api_dict[api_name].on_post(req, resp)
+            try:
+                self.api_dict[api_name].on_post(req, resp)
+            except:
+                err = get_error_message()
+                resp.status = falcon.HTTP_500
+                resp.body = json.dumps({
+                    'code': -100,
+                    'message': 'Error occured during processing /apis/{}: {}'.format(api_name, err),
+                    'result': None
+                })
         else:
             resp.status = falcon.HTTP_404
 apis_resource = APIsResource()
