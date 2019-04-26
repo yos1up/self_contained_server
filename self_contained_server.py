@@ -1,7 +1,10 @@
 import falcon
 from falcon_multipart.middleware import MultipartMiddleware
 import json
-import os, shutil
+import os
+import shutil
+import subprocess
+import time
 import importlib
 import zipfile
 import glob
@@ -23,7 +26,6 @@ class CORSMiddleware:
 app = falcon.API(middleware=[CORSMiddleware(), MultipartMiddleware()])
 
 
-
 def is_healthy_api_name(s):
     """
     api_name に使用可能な文字列かを判定する．
@@ -38,7 +40,29 @@ def is_healthy_api_name(s):
     return True
 
 
+def is_healthy_package_name(s):
+    """
+    package_name に使用可能な文字列かを判定する．
+    --------
+    Args: s (str)
+    Returns: (bool)
+    """
+    if s == '': return False
+    for c in s:
+        if (c < 'a' or 'z' < c) and (c < 'A' or 'Z' < c) and (c < '0' or '9' < c) and c not in '-_.': return False
+    return True
 
+'''
+def execute_shell_command(com):
+    """
+    Args:
+        com (list of str): コマンド．例： ["pip", "install", "-U", "tqdm"]
+
+    ※ com の内容の安全性や危険性について，この関数内では一切評価しないので注意．
+    """
+    proc = subprocess.run(com, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    return 
+'''
 
 class RootResource:
     """
@@ -272,6 +296,58 @@ class DeleteResource:
             'result': result
         }, ensure_ascii=False)
 
+
+class PipInstallResource:
+    """
+    pip install する．
+    URL: /query/pip_install
+    """
+    def on_post(self, req, resp):
+        code, message, result = 0, '', None
+        package_name = req.get_param('package_name')
+        if isinstance(package_name, str) and len(package_name) > 0:
+            if is_healthy_package_name(package_name):
+
+                command_str = 'pip install -U {}'.format(package_name)
+
+                proc = subprocess.Popen(
+                    command_str.strip().split(' '),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE
+                )
+                try:
+                    out, err = proc.communicate(timeout=50)
+                except subprocess.TimeoutExpired:
+                    # proc.kill()
+                    out, err = '', ''
+                    flg = False
+                else:
+                    flg = True
+
+                out = out.decode('utf-8') if isinstance(out, bytes) else out
+                err = err.decode('utf-8') if isinstance(err, bytes) else err
+
+                if flg:
+                    print('Finished `{}`: \n{}\n{}'.format(command_str, out, err))
+                    message = 'Finished `{}`: \n{}\n{}'.format(command_str, out, err)
+                else:
+                    code = 1
+                    message = 'Timeout (still running): `pip install -U {}`'.format(package_name)
+            else:
+                code = 2
+                message = 'There are some invalid characters in the package_name ({})'.format(package_name)
+        else:
+            code = 3
+            message = 'Specify parameter `package_name`'
+
+        resp.body = json.dumps({
+            'code': code,
+            'message': message,
+            'result': result
+        }, ensure_ascii=False)
+
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='SELF-CONTAINED SERVER')
     # parser.add_argument('FILENAME', help='input filename')
@@ -283,6 +359,7 @@ if __name__ == "__main__":
     app.add_route('/', RootResource())
     app.add_route('/query/register', RegisterResource())
     app.add_route('/query/delete', DeleteResource())
+    app.add_route('/query/pip_install', PipInstallResource())
     app.add_route('/examples/{filename}', ExamplesResource())
     app.add_route('/apis/{api_name}', apis_resource)
 
