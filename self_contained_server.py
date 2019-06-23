@@ -22,6 +22,14 @@ def get_error_message(sys_exc_info=None):
 class CORSMiddleware:
     def process_request(self, req, resp):
         resp.set_header('Access-Control-Allow-Origin', '*')
+        resp.set_header('Access-Control-Allow-Methods', '*')
+        resp.set_header('Access-Control-Allow-Headers', '*')
+        # resp.set_header('Access-Control-Max-Age', 1728000)  # 20 days
+        if req.method == 'OPTIONS':
+            raise falcon.http_status.HTTPStatus(falcon.HTTP_200, body='\n')
+
+
+
 
 app = falcon.API(middleware=[CORSMiddleware(), MultipartMiddleware()])
 
