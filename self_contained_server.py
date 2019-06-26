@@ -12,6 +12,7 @@ import sys
 import argparse
 import cgi
 import traceback
+import datetime
 
 
 def get_error_message(sys_exc_info=None):
@@ -77,6 +78,9 @@ class RootResource:
     API の管理ができる index ページを表示する．
     URL: /
     """
+    def __init__(self, started_at):
+        self.started_at = started_at
+
     def on_get(self, req, resp):
         resp.content_type = falcon.MEDIA_HTML
         with open('./index.html', 'r') as f:
@@ -84,11 +88,15 @@ class RootResource:
         # TODO: 最低限のセキュリティ（外部者に API 削除される・・・）
 
         api_name_list = apis_resource.get_api_name_list()
-        api_list = ['/apis/{}'.format(name) for name in api_name_list]
+        api_list = ['./apis/{}'.format(name) for name in api_name_list]
+        api_list = ['<a href="{}">{}</a>'.format(a, a) for a in api_list]
         if len(api_list) > 0:
             resp.body = resp.body.replace('{api_list}', ', '.join(api_list))
         else:
             resp.body = resp.body.replace('{api_list}', '(None)')
+
+        resp.body = resp.body.replace('{started_at}', self.started_at.strftime('%Y/%m/%d %H:%M:%S'))
+
 
 class APIsResource:
     """
@@ -340,7 +348,7 @@ class PipInstallResource:
                     message = 'Finished `{}`: \n{}\n{}'.format(command_str, out, err)
                 else:
                     code = 1
-                    message = 'Timeout (still running): `pip install -U {}`'.format(package_name)
+                    message = 'Timeout (may be still running): `pip install -U {}`'.format(package_name)
             else:
                 code = 2
                 message = 'There are some invalid characters in the package_name ({})'.format(package_name)
@@ -354,7 +362,25 @@ class PipInstallResource:
             'result': result
         }, ensure_ascii=False)
 
+class RestartResource:
+    """
+    サーバーを再起動する．
+    URL: /query/restart
+    """
+    def __init__(self, port):
+        self.port = port
 
+    def on_post(self, req, resp):
+        code, message, result = 0, 'This server will restart in a few seconds.', None
+        resp.body = json.dumps({
+            'code': code,
+            'message': message,
+            'result': result
+        }, ensure_ascii=False)
+        # with open('_restart.sh', 'w') as f:
+        #     f.write('sleep 5; python self_contained_server.py -p {}\n'.format(self.port))
+        python = sys.executable
+        os.execl(python, python, *sys.argv)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='SELF-CONTAINED SERVER')
@@ -363,11 +389,14 @@ if __name__ == "__main__":
                         help='port number')
     args = parser.parse_args()
 
+    started_at = datetime.datetime.now()
+
     # api registration
-    app.add_route('/', RootResource())
+    app.add_route('/', RootResource(started_at=started_at))
     app.add_route('/query/register', RegisterResource())
     app.add_route('/query/delete', DeleteResource())
     app.add_route('/query/pip_install', PipInstallResource())
+    app.add_route('/query/restart', RestartResource(port=args.port))
     app.add_route('/examples/{filename}', ExamplesResource())
     app.add_route('/apis/{api_name}', apis_resource)
 

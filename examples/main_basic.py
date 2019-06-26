@@ -7,9 +7,10 @@ import json
 # import os
 # this_directory = os.path.dirname(os.path.abspath(__file__))
 
+
 class APIResource:
     def on_get(self, req, resp):
-        params = req.params # GET parameters
+        params = req.params  # GET parameters
         obj = {
             'code': 0,
             'message': 'This is GET test.',
@@ -18,7 +19,7 @@ class APIResource:
         resp.content_type = 'application/json'
         resp.body = json.dumps(obj, ensure_ascii=False)
 
-    def on_post(self, req, resp):
+    def on_post(self, req, resp):  # when application/json is POSTed 
         buf = req.stream.read()
         try:
             params = json.loads(str(buf, encoding='utf-8'))

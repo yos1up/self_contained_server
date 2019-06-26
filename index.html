@@ -23,7 +23,8 @@
 	<ul>
 		<li> Zip file must contain a file `main.py` in the root directory. </li>
 		<li> In `main.py`, a class `APIResource` must be defined, which is compatible with `falcon`. 
-			<a href="./examples/main.py">Example of main.py</a></li>
+			<a href="./examples/main_basic.py">Example of main.py</a>
+			<a href="./examples/main_basic.py">Another example</a></li>
 	</ul>
 
 	<h2> Delete API </h2>
@@ -31,6 +32,18 @@
 	<form action="./query/delete" method="POST" target="_blank" enctype="multipart/form-data">
 		API path : &nbsp; /apis/<input type="text" id="api_name" name="api_name" width=30>
 		<input type="submit" value="Delete" />
+	</form>
+
+	<br>
+
+	<h2> Miscellaneous </h2>
+
+	<form action="./query/pip_install" method="POST" target="_blank" enctype="multipart/form-data">
+		<input type="submit" value="pip install -U" /> <input type="text" id="package_name" name="package_name" width=30>
+	</form>
+
+	<form action="./query/restart" method="POST" enctype="multipart/form-data">
+		This server is started at {started_at}. <input type="submit" value="Restart server" /> (Reload manually after pressing it)
 	</form>
 
 	<br>
